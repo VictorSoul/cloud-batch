@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="60 seconds" debug="false">
+	<include resource="org/springframework/boot/logging/logback/base.xml" />
+	<logger name="org.hibernate.type.descriptor.sql.BasicBinder"
+		level="TRACE" />
+	<logger name="org.hibernate.type.descriptor.sql.BasicExtractor"
+		level="DEBUG" />
+	<logger name="org.hibernate.SQL" level="DEBUG" />
+	<logger name="org.hibernate.type" level="TRACE" />
+	<logger name="org.hibernate.engine.QueryParameters" level="DEBUG" />
+	<logger name="org.hibernate.engine.query.HQLQueryPlan" level="DEBUG" />
+	<appender name="FileAppender" class="ch.qos.logback.core.FileAppender">
+		<file>${user.config.path}/CloudBatchLogs/ClusterBatch-${cluster.local.port}.log</file>
+		<encoder>
+			<pattern>${FILE_LOG_PATTERN}</pattern>
+		</encoder>
+		<rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+			<fileNamePattern>${user.config.path}/CloudBatchLogs/ClusterBatch-${cluster.local.port}.%i.log</fileNamePattern>
+		</rollingPolicy>
+		<triggeringPolicy
+			class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+			<MaxFileSize>100MB</MaxFileSize>
+		</triggeringPolicy>
+	</appender>
+	<root level="DEBUG">
+		<appender-ref ref="FileAppender" />
+	</root>
+</configuration>

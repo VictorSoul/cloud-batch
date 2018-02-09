@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:batch="http://www.springframework.org/schema/batch"
+	xmlns:int-jms="http://www.springframework.org/schema/integration/jms"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xsi:schemaLocation="http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.3.xsd
+		http://www.springframework.org/schema/integration/jms http://www.springframework.org/schema/integration/jms/spring-integration-jms-4.3.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration-4.3.xsd
+		http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-4.3.xsd">
+
+	<batch:job id="eloan-accrual" job-repository="jobCloudRepository">
+		<batch:step id="eloan-accrual.partition.PartitionStep">
+			<batch:partition step="eloan-accrual.partition.RemoteStep"
+				partitioner="eloan-accrual.partition.Partitioner" handler="eloan-accrual.partition.PartitionHandler" />
+		</batch:step>
+	</batch:job>
+	<batch:step id="eloan-accrual.partition.RemoteStep"
+		job-repository="jobCloudRepository">
+		<batch:tasklet transaction-manager="transactionManager">
+			<batch:chunk reader="eloan-accrual.reader.PagingItemReader"
+				writer="eloan-accrual.writer.PagingItemWriter" processor="eloan-accrual.processor.UserProcessor"
+				chunk-completion-policy="batchDefaultChunkCompletionPolicy" />
+		</batch:tasklet>
+	</batch:step>
+	<bean id="eloan-accrual.partition.PartitionHandler"
+		class="com.cs.batch.domain.service.core.partition.MessageCloudPartitionHandler">
+		<property name="jobCloudRepository" ref="jobCloudRepository" />
+		<property name="stepName" value="eloan-accrual.partition.RemoteStep" />
+		<property name="replyChannel" ref="eloan-accrual.channel.aggregator" />
+		<property name="messagingOperations" ref="eloan-accrual.messaging.MessagingOperations" />
+	</bean>
+	<bean id="eloan-accrual.partition.Partitioner"
+		class="com.cs.batch.domain.service.core.partition.DatabaseSortKeysRegionPartitioner">
+		<property name="dataSource" ref="IATRXNONXADataSource" />
+		<property name="partitionSize" value="100" />
+		<property name="queryProvider" ref="eloan-accrual.partition.SqlQueryProvider" />
+	</bean>
+	<bean id="eloan-accrual.partition.SqlQueryProvider"
+		class="org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean">
+		<property name="dataSource" ref="IATRXNONXADataSource" />
+		<property name="selectClause"
+			value="SELECT C_UNIT_CODE, IA_C_MODU_NAME, IA_C_REF_NO" />
+		<property name="fromClause"
+			value="FROM (SELECT
+						C_UNIT_CODE,
+						IA_C_MODU_NAME,
+						IA_C_REF_NO,
+						IA_C_REC_TYPE
+					FROM
+						IAAC_ACCMASTERLAY
+					UNION SELECT
+						C_UNIT_CODE,
+						IA_C_MODU_NAME,
+						IA_C_REF_NO,
+						IA_C_REC_TYPE
+					FROM
+						IAAC_AMZMASTERLAY
+					ORDER BY
+						C_UNIT_CODE ASC,
+						IA_C_MODU_NAME ASC,
+						IA_C_REF_NO ASC)" />
+		<property name="sortKeys">
+			<map>
+				<entry key="C_UNIT_CODE" value="ASCENDING"
+					value-type="org.springframework.batch.item.database.Order" />
+				<entry key="IA_C_MODU_NAME" value="ASCENDING"
+					value-type="org.springframework.batch.item.database.Order" />
+				<entry key="IA_C_REF_NO" value="ASCENDING"
+					value-type="org.springframework.batch.item.database.Order" />
+			</map>
+		</property>
+	</bean>
+	<bean id="eloan-accrual.messaging.MessagingOperations" class="org.springframework.integration.core.MessagingTemplate">
+		<property name="defaultChannel" ref="eloan-accrual.channel.dispatch" />
+		<property name="receiveTimeout" value="60000000" />
+	</bean>
+	<bean id="eloan-accrual.reader.PagingItemReader"
+		class="org.springframework.batch.item.database.JdbcPagingItemReader"
+		scope="step">
+		<property name="dataSource" ref="IATRXDataSource" />
+		<property name="queryProvider" ref="eloan-accrual.reader.SqlQueryProvider" />
+		<property name="parameterValues">
+			<map>
+				<entry key="S_IA_C_REF_NO" value="#{stepExecutionContext[fromIndex][IA_C_REF_NO]}"
+					value-type="java.lang.String" />
+				<entry key="S_IA_C_MODU_NAME"
+					value="#{stepExecutionContext[fromIndex][IA_C_MODU_NAME]}"
+					value-type="java.lang.String" />
+				<entry key="S_C_UNIT_CODE" value="#{stepExecutionContext[fromIndex][C_UNIT_CODE]}"
+					value-type="java.lang.String" />
+				<entry key="E_IA_C_REF_NO" value="#{stepExecutionContext[toIndex][IA_C_REF_NO]}"
+					value-type="java.lang.String" />
+				<entry key="E_IA_C_MODU_NAME" value="#{stepExecutionContext[toIndex][IA_C_MODU_NAME]}"
+					value-type="java.lang.String" />
+				<entry key="E_C_UNIT_CODE" value="#{stepExecutionContext[toIndex][C_UNIT_CODE]}"
+					value-type="java.lang.String" />
+			</map>
+		</property>
+		<property name="pageSize" value="10" />
+		<property name="rowMapper">
+			<bean class="org.springframework.jdbc.core.ColumnMapRowMapper" />
+		</property>
+	</bean>
+	<bean id="eloan-accrual.reader.SqlQueryProvider"
+		class="org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean">
+		<property name="dataSource" ref="IATRXDataSource" />
+		<property name="selectClause"
+			value="SELECT C_UNIT_CODE, IA_C_MODU_NAME, IA_C_REF_NO, IA_C_REC_TYPE" />
+		<property name="fromClause"
+			value="FROM (SELECT
+												C_UNIT_CODE,
+												IA_C_MODU_NAME,
+												IA_C_REF_NO,
+												IA_C_REC_TYPE
+											FROM
+												IAAC_ACCMASTERLAY
+											UNION SELECT
+												C_UNIT_CODE,
+												IA_C_MODU_NAME,
+												IA_C_REF_NO,
+												IA_C_REC_TYPE
+											FROM
+												IAAC_AMZMASTERLAY
+											ORDER BY
+												C_UNIT_CODE ASC,
+												IA_C_MODU_NAME ASC,
+												IA_C_REF_NO ASC)" />
+		<property name="whereClause"
+			value="WHERE (C_UNIT_CODE &gt; :S_C_UNIT_CODE OR (C_UNIT_CODE =
+						:S_C_UNIT_CODE AND
+						IA_C_MODU_NAME &gt; :S_IA_C_MODU_NAME) OR
+						(C_UNIT_CODE =
+						:S_C_UNIT_CODE AND IA_C_MODU_NAME =
+						:S_IA_C_MODU_NAME AND
+						IA_C_REF_NO &gt;=
+						:S_IA_C_REF_NO)) AND
+						(C_UNIT_CODE &lt;
+						:E_C_UNIT_CODE OR (C_UNIT_CODE = :E_C_UNIT_CODE
+						AND IA_C_MODU_NAME
+						&lt; :E_IA_C_MODU_NAME) OR (C_UNIT_CODE =
+						:E_C_UNIT_CODE AND
+						IA_C_MODU_NAME = :E_IA_C_MODU_NAME AND
+						IA_C_REF_NO &lt;=
+						:E_IA_C_REF_NO))" />
+		<property name="sortKeys">
+			<map>
+				<entry key="C_UNIT_CODE" value="ASCENDING"
+					value-type="org.springframework.batch.item.database.Order" />
+				<entry key="IA_C_MODU_NAME" value="ASCENDING"
+					value-type="org.springframework.batch.item.database.Order" />
+				<entry key="IA_C_REF_NO" value="ASCENDING"
+					value-type="org.springframework.batch.item.database.Order" />
+			</map>
+		</property>
+	</bean>
+	<bean id="eloan-accrual.writer.PagingItemWriter" class="com.cs.service.batch.eloan.ELoanBatchWriter">
+		<property name="dataSource" ref="IATRXDataSource" />
+	</bean>
+	<bean id="eloan-accrual.processor.UserProcessor" class="com.cs.service.batch.eloan.ELoanBatchProcessor"
+		scope="step">
+		<property name="businessProcessorDelegate">
+			<bean class="com.cs.service.batch.eloan.ELoanAccrualDelegate">
+				<property name="trxDataSource" ref="IATRXNONXADataSource" />
+				<property name="sysDataSource" ref="IASYSNONXADataSource" />
+				<property name="user" value="#{jobParameters[user]}" />
+				<property name="date" value="#{jobParameters[date]}" />
+			</bean>
+		</property>
+	</bean>
+
+	<int:channel id="eloan-accrual.channel.aggregator">
+		<int:queue />
+	</int:channel>
+	<int:channel id="eloan-accrual.channel.dispatch" />
+
+	<beans profile="master">
+		<int:channel id="eloan-accrual.channel.aggregator.input" />
+		<int:aggregator ref="eloan-accrual.partition.PartitionHandler"
+			send-partial-result-on-expiry="true" send-timeout="60000000"
+			input-channel="eloan-accrual.channel.aggregator.input"
+			output-channel="eloan-accrual.channel.aggregator" release-strategy="batchReplyMessageReleaseStrategy" />
+		<int-jms:outbound-channel-adapter
+			destination-name="eloanbatch.accrual.requests" channel="eloan-accrual.channel.dispatch"
+			connection-factory="MQConnectionFactory" />
+		<int-jms:message-driven-channel-adapter
+			id="eloan-accrual.partition.PartitionStep.mdca" destination-name="eloanbatch.accrual.replies"
+			channel="eloan-accrual.channel.aggregator.input" connection-factory="MQConnectionFactory"
+			transaction-manager="transactionManager" message-converter="batchRemoteStepRepliedMessageConverter"
+			auto-startup="false" />
+	</beans>
+	<beans profile="executor">
+		<int:channel id="eloan-accrual.channel.request" />
+		<int:channel id="eloan-accrual.channel.response" />
+		<int-jms:message-driven-channel-adapter
+			destination-name="eloanbatch.accrual.requests" channel="eloan-accrual.channel.request"
+			transaction-manager="transactionManager" connection-factory="MQConnectionFactory" />
+		<int-jms:outbound-channel-adapter
+			destination-name="eloanbatch.accrual.replies" channel="eloan-accrual.channel.response"
+			connection-factory="MQConnectionFactory" />
+		<int:service-activator
+			ref="batchRemoteStepExecutionRequestCloudHandler"
+			input-channel="eloan-accrual.channel.request" output-channel="eloan-accrual.channel.response" />
+	</beans>
+</beans>

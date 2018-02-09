@@ -1,0 +1,118 @@
+cloud:
+  batch:
+    scripts:
+      schemaSql: 'classpath*:/org/springframework/batch/core/schema-${cloud.batch.database.env}.sql,classpath*:/com/cs/batch/domain/service/cloud-batch-${cloud.batch.database.env}.sql'
+      dropSql: 'classpath*:/org/springframework/batch/core/schema-drop-${cloud.batch.database.env}.sql,classpath*:/com/cs/batch/domain/service/cloud-batch-drop-${cloud.batch.database.env}.sql'
+    jobFilesPattern: '/**/*-job.xml'
+    roles:
+      jobRecovery: master
+      central: central
+    jta:
+      timeout: 300
+    logging:
+      configPath: 'batch/config/logconfiguration.xml'
+    mq:
+      brokerURL: 'tcp://10.39.101.146:61616?wireFormat.maxInactivityDurationInitalDelay=60000&jms.prefetchPolicy.queuePrefetch=1'
+      user: admin
+      password: admin
+      cache.poolSize: 5
+    database:
+      env: oracle
+    datasources:
+      - name: default
+        jmxEnabled: false
+        testWhileIdle: true
+        testOnBorrow: false
+        testOnReturn: false
+        validationQuery: SELECT 1
+        validationInterval: 30000
+        timeBetweenEvictionRunsMillis: 5000
+        maxActive: 20
+        initialSize: 0
+        maxWait: 60000
+        removeAbandonedTimeout: 300
+        minEvictableIdleTimeMillis: 60000
+        minIdle: 0
+        maxIdle: 10
+        logAbandoned: true
+        removeAbandoned: true
+        maxOpenPreparedStatements: 0
+        poolPreparedStatements: false
+        accessToUnderlyingConnectionAllowed: false
+        fairQueue: true
+        abandonWhenPercentageFull: 0
+        maxAge: 0
+        useEquals: true
+        suspectTimeout: 0
+        rollbackOnReturn: false
+        commitOnReturn: false
+        useDisposableConnectionFacade: true
+        logValidationErrors: false
+        propagateInterruptState: false
+        maxPoolSize: 10
+        minPoolSize: 10
+        reapTimeout: 120
+        maxIdleTime: 60
+        maintenanceInterval: 60
+        loginTimeout: 60
+        borrowConnectionTimeout: 120
+        testQuery: SELECT 1
+      - name: batch
+        dataSourcePoolClassName: com.atomikos.jdbc.AtomikosDataSourceBean
+        dataSourceClassName: oracle.jdbc.xa.client.OracleXADataSource
+        driverClassName: oracle.jdbc.driver.OracleDriver
+        url: jdbc:oracle:thin:@10.39.101.174:1521/EEDB
+        username: EXIMSYS
+        password: EXIMSYS
+        maxPoolSize: 30
+        minPoolSize: 30
+        aliases: cluster
+        testQuery: SELECT 1 FROM DUAL
+        parent: default
+      - name: IATRXNONXA
+        dataSourcePoolClassName: com.atomikos.jdbc.nonxa.AtomikosNonXADataSourceBean
+        dataSourceClassName: oracle.jdbc.pool.OracleDataSource
+        driverClassName: oracle.jdbc.driver.OracleDriver
+        url: jdbc:oracle:thin:@10.39.101.174:1521/EEDB
+        username: EXIMTRX
+        password: EXIMTRX
+        schema: EXIMTRX
+        testQuery: SELECT 1 FROM DUAL
+        parent: default
+      - name: IASYSNONXA
+        dataSourcePoolClassName: com.atomikos.jdbc.nonxa.AtomikosNonXADataSourceBean
+        dataSourceClassName: oracle.jdbc.pool.OracleDataSource
+        driverClassName: oracle.jdbc.driver.OracleDriver
+        url: jdbc:oracle:thin:@10.39.101.174:1521/EEDB
+        username: EXIMSYS
+        password: EXIMSYS
+        schema: EXIMSYS
+        testQuery: SELECT 1 FROM DUAL
+        parent: default
+      - name: IATRX
+        dataSourcePoolClassName: com.atomikos.jdbc.AtomikosDataSourceBean
+        dataSourceClassName: oracle.jdbc.xa.client.OracleXADataSource
+        driverClassName: oracle.jdbc.driver.OracleDriver
+        url: jdbc:oracle:thin:@10.39.101.174:1521/EEDB
+        username: EXIMTRX
+        password: EXIMTRX
+        schema: EXIMTRX
+        testQuery: SELECT 1 FROM DUAL
+        parent: default
+      - name: IASYS
+        dataSourcePoolClassName: com.atomikos.jdbc.AtomikosDataSourceBean
+        dataSourceClassName: oracle.jdbc.xa.client.OracleXADataSource
+        driverClassName: oracle.jdbc.driver.OracleDriver
+        url: jdbc:oracle:thin:@10.39.101.174:1521/EEDB
+        username: EXIMSYS
+        password: EXIMSYS
+        schema: EXIMSYS
+        testQuery: SELECT 1 FROM DUAL
+        parent: default
+    cluster:
+      scripts:
+        schemaSql: 'classpath*:/com/cs/cluster/domain/service/cloud-cluster-${cloud.batch.database.env}.sql'
+        dropSql: 'classpath*:/com/cs/cluster/domain/service/cloud-cluster-drop-${cloud.batch.database.env}.sql'
+      mode: cluster
+      env: kubernetes
+      hostAddressMode: hostname
