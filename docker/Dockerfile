@@ -1,5 +1,5 @@
 #for product-eloan images,base images made from CentOS dockerfile
-FROM tomcat
+FROM tomcat:8.0
 
 COPY batchadmin.war /opt/apache-tomcat-8.0.49/webapps/
 COPY catalina.properties /opt/apache-tomcat-8.0.49/conf/
