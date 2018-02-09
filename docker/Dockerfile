@@ -7,3 +7,5 @@ COPY jstl-1.2.jar /opt/apache-tomcat-7.0.82/lib/
 COPY standard-1.1.2.jar /opt/apache-tomcat-7.0.82/lib/
 RUN  mkdir /opt/batch-data
 COPY batch /opt/batch-data/batch/
+
+ENTRYPOINT /bin/bash
